@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import Link from "next/link";
 import { Suspense } from "react";
+import PasswordInput from "@/components/PasswordInput";
 
 function LoginForm() {
   const router = useRouter();
@@ -69,25 +70,24 @@ function LoginForm() {
       </div>
 
       <div>
-        <label
-          className="block text-xs font-semibold uppercase tracking-wider"
-          style={{ color: "var(--color-text-muted)" }}
-        >
-          Password
-        </label>
-        <input
-          type="password"
+        <div className="flex items-center justify-between">
+          <label
+            className="block text-xs font-semibold uppercase tracking-wider"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            Password
+          </label>
+          <Link
+            href="/forgot-password"
+            className="text-xs font-medium transition-colors hover:opacity-80"
+            style={{ color: "var(--color-brand)" }}
+          >
+            Forgot password?
+          </Link>
+        </div>
+        <PasswordInput
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          required
-          className="mt-1 block w-full rounded-lg px-3 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2"
-          style={{
-            background: "var(--color-surface-2)",
-            border: "1px solid var(--color-border-subtle)",
-            color: "var(--color-text-primary)",
-            "--tw-ring-color": "var(--color-brand)",
-          } as React.CSSProperties}
-          placeholder="••••••••"
         />
       </div>
 
