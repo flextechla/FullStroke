@@ -24,8 +24,8 @@ export default async function DashboardLayout({
     .eq("id", user.id)
     .single();
 
-  const shopName =
-    (profile?.workspaces as { name: string } | null)?.name || "My Shop";
+  const ws = profile?.workspaces as unknown as { name: string } | { name: string }[] | null;
+const shopName = Array.isArray(ws) ? ws[0]?.name || "My Shop" : ws?.name || "My Shop";
   const userName = profile?.full_name || user.email || "User";
   const userRole = profile?.role || "mechanic";
 
