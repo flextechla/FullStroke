@@ -2,7 +2,7 @@
   "name": "FullStroke",
   "short_name": "FullStroke",
   "description": "Repair shop management for small engine mechanics",
-  "start_url": "/dashboard",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#f8f8f6",
   "theme_color": "#f59e0b",
