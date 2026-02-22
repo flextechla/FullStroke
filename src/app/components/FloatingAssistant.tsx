@@ -50,13 +50,12 @@ export default function FloatingAssistant() {
   }, [open]);
 
   function createRecognition() {
-    const SR =
-      (window as unknown as { SpeechRecognition?: typeof window.SpeechRecognition })
-        .SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: typeof window.SpeechRecognition })
-        .webkitSpeechRecognition;
-    if (!SR) return null;
-    const r = new SR();
+    const w = window as unknown as Record<string, unknown>;
+    const SRConstructor = (w.SpeechRecognition || w.webkitSpeechRecognition) as
+      | { new (): { continuous: boolean; interimResults: boolean; lang: string; start: () => void; stop: () => void; onresult: ((event: { results: { transcript: string }[][] }) => void) | null; onerror: (() => void) | null; onend: (() => void) | null } }
+      | undefined;
+    if (!SRConstructor) return null;
+    const r = new SRConstructor();
     r.continuous = false;
     r.interimResults = false;
     r.lang = "en-US";
