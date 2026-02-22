@@ -255,23 +255,23 @@ export default function FloatingAssistant() {
                       color: "var(--color-text-secondary, #bbb)",
                     }}
                   >
-                    {msg.data.customer_name && (
+                    {msg.data.customer_name ? (
                       <p>👤 <strong>{String(msg.data.customer_name)}</strong></p>
-                    )}
-                    {(msg.data.equipment_brand || msg.data.equipment_type) && (
+                    ) : null}
+                    {msg.data.equipment_brand || msg.data.equipment_type ? (
                       <p>
                         🔧 {[msg.data.equipment_brand, msg.data.equipment_model, msg.data.equipment_type]
                           .filter(Boolean)
                           .map(String)
                           .join(" ")}
                       </p>
-                    )}
-                    {msg.data.problem_description && (
+                    ) : null}
+                    {msg.data.problem_description ? (
                       <p>📋 {String(msg.data.problem_description)}</p>
-                    )}
-                    {msg.data.customer_phone && (
+                    ) : null}
+                    {msg.data.customer_phone ? (
                       <p>📱 {String(msg.data.customer_phone)}</p>
-                    )}
+                    ) : null}
                     <p
                       className="mt-2 text-[11px] font-medium"
                       style={{ color: "var(--color-brand, #f59e0b)" }}
