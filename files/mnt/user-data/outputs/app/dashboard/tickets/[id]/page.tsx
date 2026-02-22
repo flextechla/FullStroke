@@ -3,8 +3,6 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import ResolutionNotes from "./ResolutionNotes";
 import LaborManager from "./LaborManager";
-import PartsManager from "./PartsManager";
-import EditableDescription from "./EditableDescription";
 import ContactActions from "./ContactActions";
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
@@ -123,7 +121,7 @@ export default async function TicketDetailPage({
         </div>
       </div>
 
-      {/* Contact Actions - Email, Text, Call */}
+      {/* Contact Actions - Email & Text */}
       <SectionCard title="Contact Customer">
         <ContactActions
           ticket={{
@@ -162,17 +160,19 @@ export default async function TicketDetailPage({
         </div>
       </SectionCard>
 
-      {/* Problem Description - NOW EDITABLE */}
+      {/* Problem Description */}
       <SectionCard title="Problem Description">
-        <EditableDescription ticketId={ticket.id} initialDescription={ticket.problem_description} />
+        <p className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+          {ticket.problem_description || "No description provided."}
+        </p>
       </SectionCard>
 
-      {/* Resolution Notes */}
+      {/* Resolution Notes - NEW */}
       <SectionCard title="Resolution / Completion Notes">
         <ResolutionNotes ticketId={ticket.id} initialNotes={ticket.resolution_notes} />
       </SectionCard>
 
-      {/* Services */}
+      {/* Services / Resolution */}
       {ticket.services && (
         <SectionCard title="Services">
           <div className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
@@ -200,12 +200,55 @@ export default async function TicketDetailPage({
         </SectionCard>
       )}
 
-      {/* Parts - NOW INTERACTIVE */}
+      {/* Parts Used */}
       <SectionCard title="Parts Used">
-        <PartsManager ticketId={ticket.id} initialParts={ticketParts || []} />
+        {ticketParts && ticketParts.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
+                  <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Part</th>
+                  <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Qty</th>
+                  <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Unit Price</th>
+                  <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ticketParts.map((part) => (
+                  <tr key={part.id} style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
+                    <td className="py-2.5 pr-4" style={{ color: "var(--color-text-primary)" }}>
+                      {part.description || "Unnamed part"}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right font-mono" style={{ color: "var(--color-text-secondary)" }}>
+                      {part.quantity}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right font-mono" style={{ color: "var(--color-text-secondary)" }}>
+                      ${Number(part.unit_price || 0).toFixed(2)}
+                    </td>
+                    <td className="py-2.5 text-right font-mono font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                      ${Number(part.total_price || 0).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ borderTop: "2px solid var(--color-border)" }}>
+                  <td colSpan={3} className="pt-2.5 pr-4 text-right text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
+                    Parts Subtotal
+                  </td>
+                  <td className="pt-2.5 text-right font-mono font-bold" style={{ color: "var(--color-brand)" }}>
+                    ${partsTotal.toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>No parts recorded.</p>
+        )}
       </SectionCard>
 
-      {/* Labor - NOW INTERACTIVE WITH EDIT */}
+      {/* Labor - NOW INTERACTIVE */}
       <SectionCard title="Labor">
         <LaborManager ticketId={ticket.id} initialLabor={ticketLabor || []} />
       </SectionCard>
