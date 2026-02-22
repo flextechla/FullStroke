@@ -17,9 +17,9 @@ export default async function DashboardPage() {
     .limit(5);
 
   const stats = [
-    { label: "Total Tickets", count: ticketRes.count ?? 0, icon: "🔧", accent: "#f59e0b" },
-    { label: "Customers", count: customerRes.count ?? 0, icon: "👥", accent: "#3b82f6" },
-    { label: "Parts in Stock", count: partRes.count ?? 0, icon: "⚙️", accent: "#22c55e" },
+    { label: "Total Tickets", count: ticketRes.count ?? 0, icon: "🔧", accent: "#f59e0b", href: "/dashboard/tickets" },
+    { label: "Customers", count: customerRes.count ?? 0, icon: "👥", accent: "#3b82f6", href: "/dashboard/customers" },
+    { label: "Parts in Stock", count: partRes.count ?? 0, icon: "⚙️", accent: "#22c55e", href: "/dashboard/parts" },
   ];
 
   return (
@@ -36,9 +36,10 @@ export default async function DashboardPage() {
       {/* Stat cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         {stats.map((stat) => (
-          <div
+          <Link
             key={stat.label}
-            className="relative overflow-hidden rounded-xl p-5"
+            href={stat.href}
+            className="relative overflow-hidden rounded-xl p-5 transition-colors hover:bg-[var(--color-surface-2)]"
             style={{
               background: "var(--color-surface-0)",
               border: "1px solid var(--color-border-subtle)",
@@ -59,7 +60,7 @@ export default async function DashboardPage() {
               </div>
               <span className="text-3xl opacity-40">{stat.icon}</span>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 

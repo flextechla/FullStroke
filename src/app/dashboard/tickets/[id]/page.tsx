@@ -117,9 +117,18 @@ export default async function TicketDetailPage({
               {formatStatus(ticket.status)}
             </span>
           </div>
-          <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-            {ticket.ticket_date ? new Date(ticket.ticket_date).toLocaleDateString() : "No date"}
-          </span>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/dashboard/tickets/${ticket.id}/invoice`}
+              className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-black transition-all hover:brightness-110"
+              style={{ background: "var(--color-brand)" }}
+            >
+              📄 Generate Invoice
+            </Link>
+            <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+              {ticket.ticket_date ? new Date(ticket.ticket_date).toLocaleDateString() : "No date"}
+            </span>
+          </div>
         </div>
       </div>
 
