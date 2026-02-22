@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/layout/DashboardShell";
+import FloatingAssistant from "@/app/components/FloatingAssistant";
 
 export default async function DashboardLayout({
   children,
@@ -25,7 +26,7 @@ export default async function DashboardLayout({
     .single();
 
   const ws = profile?.workspaces as unknown as { name: string } | { name: string }[] | null;
-const shopName = Array.isArray(ws) ? ws[0]?.name || "My Shop" : ws?.name || "My Shop";
+  const shopName = Array.isArray(ws) ? ws[0]?.name || "My Shop" : ws?.name || "My Shop";
   const userName = profile?.full_name || user.email || "User";
   const userRole = profile?.role || "mechanic";
 
@@ -36,6 +37,7 @@ const shopName = Array.isArray(ws) ? ws[0]?.name || "My Shop" : ws?.name || "My 
       userRole={userRole}
     >
       {children}
+      <FloatingAssistant />
     </DashboardShell>
   );
 }
