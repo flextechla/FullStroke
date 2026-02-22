@@ -163,37 +163,100 @@ export default function FloatingAssistant() {
     setListening(true);
   }
 
+  const [btnPos, setBtnPos] = useState<{ x: number; y: number }>({ x: -1, y: -1 });
+  const draggingRef = useRef(false);
+  const dragStartRef = useRef<{ x: number; y: number; bx: number; by: number }>({ x: 0, y: 0, bx: 0, by: 0 });
+  const movedRef = useRef(false);
+
+  // Load saved position
+  useEffect(() => {
+    const saved = localStorage.getItem("assistant_btn_pos");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setBtnPos({ x: parsed.x, y: parsed.y });
+      } catch { /* ignore */ }
+    } else {
+      // Default: top-right area, away from bottom controls
+      setBtnPos({ x: window.innerWidth - 70, y: 100 });
+    }
+  }, []);
+
+  function onPointerDown(e: React.PointerEvent) {
+    draggingRef.current = true;
+    movedRef.current = false;
+    dragStartRef.current = { x: e.clientX, y: e.clientY, bx: btnPos.x, by: btnPos.y };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    if (!draggingRef.current) return;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) movedRef.current = true;
+    const newX = Math.max(0, Math.min((typeof window !== "undefined" ? window.innerWidth : 1024) - 56, dragStartRef.current.bx + dx));
+    const newY = Math.max(0, Math.min((typeof window !== "undefined" ? window.innerHeight : 768) - 56, dragStartRef.current.by + dy));
+    setBtnPos({ x: newX, y: newY });
+  }
+
+  function onPointerUp() {
+    draggingRef.current = false;
+    localStorage.setItem("assistant_btn_pos", JSON.stringify(btnPos));
+    // Only open if it wasn't a drag
+    if (!movedRef.current) {
+      setOpen(true);
+    }
+  }
+
   function formatStatus(s: string) {
     return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
+  // Determine chat panel position based on button position
+  const windowW = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const windowH = typeof window !== "undefined" ? window.innerHeight : 768;
+  const panelOnRight = btnPos.x > windowW / 2;
+  const panelOnBottom = btnPos.y > windowH / 2;
+
   return (
     <>
-      {/* Floating Button */}
-      {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full text-2xl shadow-lg transition-all hover:scale-110 active:scale-95"
+      {/* Draggable Floating Button */}
+      {!open && btnPos.x >= 0 && (
+        <div
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          className="fixed z-50 flex h-14 w-14 cursor-grab items-center justify-center rounded-full text-2xl shadow-lg transition-shadow hover:shadow-xl active:cursor-grabbing"
           style={{
+            left: `${btnPos.x}px`,
+            top: `${btnPos.y}px`,
             background: "var(--color-brand, #f59e0b)",
             color: "#000",
             boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+            touchAction: "none",
+            userSelect: "none",
           }}
-          title="AI Assistant"
+          title="AI Assistant — drag to move"
         >
           🤖
-        </button>
+        </div>
       )}
 
       {/* Chat Panel */}
       {open && (
         <div
-          className="fixed bottom-6 right-6 z-50 flex flex-col overflow-hidden rounded-2xl shadow-2xl"
+          className="fixed z-50 flex flex-col overflow-hidden rounded-2xl shadow-2xl"
           style={{
             width: "380px",
             maxWidth: "calc(100vw - 32px)",
             height: "520px",
             maxHeight: "calc(100vh - 100px)",
+            ...(panelOnRight
+              ? { right: "24px" }
+              : { left: "24px" }),
+            ...(panelOnBottom
+              ? { bottom: "24px" }
+              : { top: `${Math.max(24, btnPos.y)}px` }),
             background: "var(--color-surface-0, #1a1a1a)",
             border: "1px solid var(--color-border-subtle, #333)",
           }}
