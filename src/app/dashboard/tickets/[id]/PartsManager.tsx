@@ -86,12 +86,10 @@ export default function PartsManager({ ticketId, initialParts }: { ticketId: str
 
     // Deduct from inventory if we picked from inventory and adding (not editing)
     if (selectedInvId && !editingId) {
-      await supabase.rpc("decrement_stock", { part_id: selectedInvId, qty: qty }).catch(() => {
-        // If rpc doesn't exist, do manual update
-        supabase.from("parts").select("stock").eq("id", selectedInvId).single().then(({ data }) => {
-          if (data) supabase.from("parts").update({ stock: Math.max(0, (data.stock || 0) - qty) }).eq("id", selectedInvId);
-        });
-      });
+      const { data: current } = await supabase.from("parts").select("stock").eq("id", selectedInvId).single();
+      if (current) {
+        await supabase.from("parts").update({ stock: Math.max(0, (current.stock || 0) - qty) }).eq("id", selectedInvId);
+      }
     }
 
     setSaving(false);
