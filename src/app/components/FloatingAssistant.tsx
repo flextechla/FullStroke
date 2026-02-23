@@ -52,15 +52,18 @@ export default function FloatingAssistant() {
   function createRecognition() {
     const w = window as unknown as Record<string, unknown>;
     const SRConstructor = (w.SpeechRecognition || w.webkitSpeechRecognition) as
-      | { new (): { continuous: boolean; interimResults: boolean; lang: string; start: () => void; stop: () => void; onresult: ((event: { results: { transcript: string }[][] }) => void) | null; onerror: (() => void) | null; onend: (() => void) | null } }
+      | { new (): { continuous: boolean; interimResults: boolean; lang: string; start: () => void; stop: () => void; onresult: ((event: { results: { isFinal: boolean; 0: { transcript: string } }[]; resultIndex: number }) => void) | null; onerror: (() => void) | null; onend: (() => void) | null } }
       | undefined;
     if (!SRConstructor) return null;
     const r = new SRConstructor();
-    r.continuous = false;
-    r.interimResults = false;
+    r.continuous = true;
+    r.interimResults = true;
     r.lang = "en-US";
     return r;
   }
+
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fullTranscriptRef = useRef("");
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -133,7 +136,15 @@ export default function FloatingAssistant() {
 
   function toggleVoice() {
     if (listening && recognitionRef.current) {
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       recognitionRef.current.stop();
+      // Send whatever we have so far
+      const text = fullTranscriptRef.current.trim();
+      if (text) {
+        setInput(text);
+        setTimeout(() => sendMessage(text), 300);
+      }
+      fullTranscriptRef.current = "";
       setListening(false);
       return;
     }
@@ -145,19 +156,56 @@ export default function FloatingAssistant() {
     }
 
     recognitionRef.current = recognition;
+    fullTranscriptRef.current = "";
 
-    recognition.onresult = (event: { results: { transcript: string }[][] }) => {
-      const transcript = event.results[0][0].transcript;
-      if (transcript) {
-        setInput(transcript);
-        // Auto-send after voice
-        setTimeout(() => sendMessage(transcript), 300);
+    recognition.onresult = (event: { results: { isFinal: boolean; 0: { transcript: string } }[]; resultIndex: number }) => {
+      // Build full transcript from all results
+      let finalText = "";
+      let interimText = "";
+      for (let i = 0; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalText += result[0].transcript + " ";
+        } else {
+          interimText += result[0].transcript;
+        }
       }
+
+      fullTranscriptRef.current = (finalText + interimText).trim();
+      setInput(fullTranscriptRef.current);
+
+      // Reset silence timer — wait 3 seconds of silence before auto-sending
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = setTimeout(() => {
+        if (recognitionRef.current) recognitionRef.current.stop();
+        const text = fullTranscriptRef.current.trim();
+        if (text) {
+          setTimeout(() => sendMessage(text), 300);
+        }
+        fullTranscriptRef.current = "";
+        setListening(false);
+      }, 3000);
+    };
+
+    recognition.onerror = () => {
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      fullTranscriptRef.current = "";
       setListening(false);
     };
 
-    recognition.onerror = () => setListening(false);
-    recognition.onend = () => setListening(false);
+    recognition.onend = () => {
+      // Only clean up if we haven't already handled it
+      if (listening) {
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        const text = fullTranscriptRef.current.trim();
+        if (text) {
+          setInput(text);
+          setTimeout(() => sendMessage(text), 300);
+        }
+        fullTranscriptRef.current = "";
+        setListening(false);
+      }
+    };
 
     recognition.start();
     setListening(true);
