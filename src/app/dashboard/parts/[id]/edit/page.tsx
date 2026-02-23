@@ -25,10 +25,10 @@ export default function EditPartPage() {
   const supabase = createBrowserSupabaseClient();
 
   const [name, setName] = useState("");
-  const [partNumber, setPartNumber] = useState("");
+  const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [reorderPoint, setReorderPoint] = useState("");
+  const [stock, setStock] = useState("");
+  const [minStock, setMinStock] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -48,10 +48,10 @@ export default function EditPartPage() {
       }
 
       setName(data.name || "");
-      setPartNumber(data.part_number || "");
+      setDescription(data.description || "");
       setPrice(data.price != null ? String(data.price) : "");
-      setQuantity(data.quantity != null ? String(data.quantity) : "");
-      setReorderPoint(data.reorder_point != null ? String(data.reorder_point) : "");
+      setStock(data.stock != null ? String(data.stock) : "");
+      setMinStock(data.min_stock != null ? String(data.min_stock) : "");
       setFetching(false);
     }
     load();
@@ -66,10 +66,10 @@ export default function EditPartPage() {
       .from("parts")
       .update({
         name: name.trim(),
-        part_number: partNumber.trim() || null,
+        description: description.trim() || null,
         price: price ? parseFloat(price) : null,
-        quantity: quantity ? parseInt(quantity) : 0,
-        reorder_point: reorderPoint ? parseInt(reorderPoint) : null,
+        stock: stock ? parseInt(stock) : 0,
+        min_stock: minStock ? parseInt(minStock) : null,
       })
       .eq("id", id);
 
@@ -121,8 +121,8 @@ export default function EditPartPage() {
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className={inputClass} style={inputStyle} />
           </div>
           <div>
-            <label className={labelClass} style={labelStyle}>Part Number</label>
-            <input type="text" value={partNumber} onChange={(e) => setPartNumber(e.target.value)} className={inputClass} style={inputStyle} />
+            <label className={labelClass} style={labelStyle}>Description</label>
+            <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} style={inputStyle} placeholder="Optional description..." />
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
@@ -130,12 +130,12 @@ export default function EditPartPage() {
               <input type="number" step="0.01" min="0" value={price} onChange={(e) => setPrice(e.target.value)} className={inputClass} style={inputStyle} />
             </div>
             <div>
-              <label className={labelClass} style={labelStyle}>Quantity</label>
-              <input type="number" min="0" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={inputClass} style={inputStyle} />
+              <label className={labelClass} style={labelStyle}>Stock</label>
+              <input type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} className={inputClass} style={inputStyle} />
             </div>
             <div>
-              <label className={labelClass} style={labelStyle}>Reorder At</label>
-              <input type="number" min="0" value={reorderPoint} onChange={(e) => setReorderPoint(e.target.value)} className={inputClass} style={inputStyle} />
+              <label className={labelClass} style={labelStyle}>Min Stock</label>
+              <input type="number" min="0" value={minStock} onChange={(e) => setMinStock(e.target.value)} className={inputClass} style={inputStyle} />
             </div>
           </div>
         </div>

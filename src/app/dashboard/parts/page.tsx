@@ -42,7 +42,7 @@ export default async function PartsPage() {
       <div className="mt-6 space-y-3 lg:hidden">
         {parts && parts.length > 0 ? (
           parts.map((part) => {
-            const lowStock = Number(part.quantity || 0) <= Number(part.reorder_point || 0);
+            const lowStock = Number(part.stock || 0) <= Number(part.min_stock || 0);
             return (
               <Link
                 key={part.id}
@@ -58,11 +58,6 @@ export default async function PartsPage() {
                     <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
                       {part.name}
                     </p>
-                    {part.part_number && (
-                      <p className="mt-0.5 font-mono text-xs" style={{ color: "var(--color-text-muted)" }}>
-                        #{part.part_number}
-                      </p>
-                    )}
                   </div>
                   <span className="font-mono text-sm font-semibold" style={{ color: "var(--color-brand)" }}>
                     ${Number(part.price || 0).toFixed(2)}
@@ -70,17 +65,17 @@ export default async function PartsPage() {
                 </div>
                 <div className="mt-2 flex items-center gap-4 text-xs">
                   <span style={{ color: "var(--color-text-muted)" }}>
-                    Qty:{" "}
+                    Stock:{" "}
                     <span
                       className="font-semibold"
                       style={{ color: lowStock ? "#ef4444" : "var(--color-text-primary)" }}
                     >
-                      {part.quantity ?? 0}
+                      {part.stock ?? 0}
                     </span>
                   </span>
-                  {part.reorder_point != null && (
+                  {part.min_stock != null && (
                     <span style={{ color: "var(--color-text-muted)" }}>
-                      Reorder at: {part.reorder_point}
+                      Min stock: {part.min_stock}
                     </span>
                   )}
                 </div>
@@ -109,10 +104,10 @@ export default async function PartsPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
-                {["Part Name", "Part #", "Qty", "Reorder At", "Price"].map((h, i) => (
+                {["Part Name", "Stock", "Min Stock", "Price"].map((h, i) => (
                   <th
                     key={h}
-                    className={`px-5 py-3.5 text-xs font-semibold uppercase tracking-wider ${i >= 2 ? "text-right" : ""}`}
+                    className={`px-5 py-3.5 text-xs font-semibold uppercase tracking-wider ${i >= 1 ? "text-right" : ""}`}
                     style={{ color: "var(--color-text-muted)", background: "var(--color-surface-2)" }}
                   >
                     {h}
@@ -123,7 +118,7 @@ export default async function PartsPage() {
             <tbody>
               {parts && parts.length > 0 ? (
                 parts.map((part) => {
-                  const lowStock = Number(part.quantity || 0) <= Number(part.reorder_point || 0);
+                  const lowStock = Number(part.stock || 0) <= Number(part.min_stock || 0);
                   return (
                     <tr
                       key={part.id}
@@ -138,9 +133,11 @@ export default async function PartsPage() {
                         >
                           {part.name}
                         </Link>
-                      </td>
-                      <td className="px-5 py-3.5 font-mono text-xs" style={{ color: "var(--color-text-muted)" }}>
-                        {part.part_number || "—"}
+                        {part.description && (
+                          <p className="mt-0.5 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                            {part.description}
+                          </p>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <span
@@ -151,11 +148,11 @@ export default async function PartsPage() {
                           }}
                         >
                           {lowStock && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "#ef4444" }} />}
-                          {part.quantity ?? 0}
+                          {part.stock ?? 0}
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-right font-mono" style={{ color: "var(--color-text-muted)" }}>
-                        {part.reorder_point ?? "—"}
+                        {part.min_stock ?? "—"}
                       </td>
                       <td className="px-5 py-3.5 text-right font-mono font-semibold" style={{ color: "var(--color-brand)" }}>
                         ${Number(part.price || 0).toFixed(2)}
@@ -165,7 +162,7 @@ export default async function PartsPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center" style={{ color: "var(--color-text-muted)" }}>
+                  <td colSpan={4} className="px-5 py-8 text-center" style={{ color: "var(--color-text-muted)" }}>
                     No parts yet.
                   </td>
                 </tr>

@@ -28,7 +28,7 @@ export default async function PartDetailPage({
     .eq("part_id", id)
     .order("created_at", { ascending: false });
 
-  const lowStock = Number(part.quantity || 0) <= Number(part.reorder_point || 0);
+  const lowStock = Number(part.stock || 0) <= Number(part.min_stock || 0);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -46,9 +46,9 @@ export default async function PartDetailPage({
             <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
               {part.name}
             </h1>
-            {part.part_number && (
-              <p className="mt-0.5 font-mono text-sm" style={{ color: "var(--color-text-muted)" }}>
-                #{part.part_number}
+            {part.description && (
+              <p className="mt-0.5 text-sm" style={{ color: "var(--color-text-muted)" }}>
+                {part.description}
               </p>
             )}
           </div>
@@ -84,7 +84,7 @@ export default async function PartDetailPage({
             </span>
           </div>
           <div className="flex justify-between py-1.5">
-            <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>Quantity</span>
+            <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>Stock</span>
             <span
               className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-sm font-semibold"
               style={{
@@ -93,19 +93,13 @@ export default async function PartDetailPage({
               }}
             >
               {lowStock && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "#ef4444" }} />}
-              {part.quantity ?? 0}
+              {part.stock ?? 0}
             </span>
           </div>
           <div className="flex justify-between py-1.5">
-            <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>Reorder Point</span>
+            <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>Min Stock</span>
             <span className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
-              {part.reorder_point ?? "Not set"}
-            </span>
-          </div>
-          <div className="flex justify-between py-1.5">
-            <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>Part Number</span>
-            <span className="font-mono text-sm" style={{ color: "var(--color-text-primary)" }}>
-              {part.part_number || "—"}
+              {part.min_stock ?? "Not set"}
             </span>
           </div>
         </div>
@@ -118,7 +112,7 @@ export default async function PartDetailPage({
           style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}
         >
           <p className="text-sm font-semibold" style={{ color: "#ef4444" }}>
-            ⚠ Low Stock — quantity ({part.quantity ?? 0}) is at or below reorder point ({part.reorder_point})
+            ⚠ Low Stock — stock ({part.stock ?? 0}) is at or below minimum ({part.min_stock})
           </p>
         </section>
       )}
