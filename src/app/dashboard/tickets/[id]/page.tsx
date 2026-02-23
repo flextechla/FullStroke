@@ -6,6 +6,8 @@ import LaborManager from "./LaborManager";
 import PartsManager from "./PartsManager";
 import EditableDescription from "./EditableDescription";
 import ContactActions from "./ContactActions";
+import StatusChanger from "./StatusChanger";
+import ServicesManager from "./ServicesManager";
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
   intake:        { bg: "rgba(59,130,246,0.1)",  text: "#3b82f6", dot: "#3b82f6" },
@@ -28,19 +30,8 @@ function getStatusStyle(status: string) {
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section
-      className="rounded-xl p-5"
-      style={{
-        background: "var(--color-surface-0)",
-        border: "1px solid var(--color-border-subtle)",
-      }}
-    >
-      <h2
-        className="mb-3 text-xs font-semibold uppercase tracking-wider"
-        style={{ color: "var(--color-text-muted)" }}
-      >
-        {title}
-      </h2>
+    <section className="rounded-xl p-5" style={{ background: "var(--color-surface-0)", border: "1px solid var(--color-border-subtle)" }}>
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>{title}</h2>
       {children}
     </section>
   );
@@ -50,42 +41,20 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
   return (
     <div className="flex justify-between py-1.5">
       <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>{label}</span>
-      <span className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
-        {value || "—"}
-      </span>
+      <span className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>{value || "—"}</span>
     </div>
   );
 }
 
-export default async function TicketDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createServerSupabaseClient();
 
-  const { data: ticket, error } = await supabase
-    .from("tickets")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const { data: ticket, error } = await supabase.from("tickets").select("*").eq("id", id).single();
+  if (error || !ticket) notFound();
 
-  if (error || !ticket) {
-    notFound();
-  }
-
-  const { data: ticketParts } = await supabase
-    .from("ticket_parts")
-    .select("*")
-    .eq("ticket_id", id)
-    .order("created_at");
-
-  const { data: ticketLabor } = await supabase
-    .from("ticket_labor")
-    .select("*")
-    .eq("ticket_id", id)
-    .order("created_at");
+  const { data: ticketParts } = await supabase.from("ticket_parts").select("*").eq("ticket_id", id).order("created_at");
+  const { data: ticketLabor } = await supabase.from("ticket_labor").select("*").eq("ticket_id", id).order("created_at");
 
   const partsTotal = ticketParts?.reduce((sum, p) => sum + Number(p.total_price || 0), 0) ?? 0;
   const laborTotal = ticketLabor?.reduce((sum, l) => sum + Number(l.total_price || 0), 0) ?? 0;
@@ -95,59 +64,32 @@ export default async function TicketDetailPage({
     <div className="mx-auto max-w-3xl space-y-4">
       {/* Header */}
       <div>
-        <Link
-          href="/dashboard/tickets"
-          className="inline-flex items-center gap-1 text-sm font-medium transition-colors hover:opacity-80"
-          style={{ color: "var(--color-brand)" }}
-        >
-          ← Back to Tickets
-        </Link>
+        <Link href="/dashboard/tickets" className="inline-flex items-center gap-1 text-sm font-medium transition-colors hover:opacity-80" style={{ color: "var(--color-brand)" }}>← Back to Tickets</Link>
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
-              <span className="font-mono" style={{ color: "var(--color-brand)" }}>
-                {ticket.invoice_number || "Ticket"}
-              </span>
+              <span className="font-mono" style={{ color: "var(--color-brand)" }}>{ticket.invoice_number || "Ticket"}</span>
             </h1>
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
-              style={{ background: s.bg, color: s.text }}
-            >
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: s.bg, color: s.text }}>
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: s.dot }} />
               {formatStatus(ticket.status)}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              href={`/dashboard/tickets/${ticket.id}/invoice`}
-              className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-black transition-all hover:brightness-110"
-              style={{ background: "var(--color-brand)" }}
-            >
-              📄 Generate Invoice
-            </Link>
-            <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-              {ticket.ticket_date ? new Date(ticket.ticket_date).toLocaleDateString() : "No date"}
-            </span>
+            <Link href={`/dashboard/tickets/${ticket.id}/invoice`} className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-black transition-all hover:brightness-110" style={{ background: "var(--color-brand)" }}>📄 Generate Invoice</Link>
+            <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>{ticket.ticket_date ? new Date(ticket.ticket_date).toLocaleDateString() : "No date"}</span>
           </div>
         </div>
       </div>
 
-      {/* Contact Actions - Email, Text, Call */}
+      {/* Status Changer */}
+      <SectionCard title="Status">
+        <StatusChanger ticketId={ticket.id} currentStatus={ticket.status} />
+      </SectionCard>
+
+      {/* Contact Actions */}
       <SectionCard title="Contact Customer">
-        <ContactActions
-          ticket={{
-            id: ticket.id,
-            invoice_number: ticket.invoice_number,
-            customer_name: ticket.customer_name,
-            customer_email: ticket.customer_email,
-            customer_phone: ticket.customer_phone,
-            equipment_type: ticket.equipment_type,
-            equipment_brand: ticket.equipment_brand,
-            equipment_model: ticket.equipment_model,
-            status: ticket.status,
-            grand_total: ticket.grand_total,
-          }}
-        />
+        <ContactActions ticket={{ id: ticket.id, invoice_number: ticket.invoice_number, customer_name: ticket.customer_name, customer_email: ticket.customer_email, customer_phone: ticket.customer_phone, equipment_type: ticket.equipment_type, equipment_brand: ticket.equipment_brand, equipment_model: ticket.equipment_model, status: ticket.status, grand_total: ticket.grand_total }} />
       </SectionCard>
 
       {/* Customer */}
@@ -171,7 +113,7 @@ export default async function TicketDetailPage({
         </div>
       </SectionCard>
 
-      {/* Problem Description - NOW EDITABLE */}
+      {/* Problem Description */}
       <SectionCard title="Problem Description">
         <EditableDescription ticketId={ticket.id} initialDescription={ticket.problem_description} />
       </SectionCard>
@@ -181,52 +123,23 @@ export default async function TicketDetailPage({
         <ResolutionNotes ticketId={ticket.id} initialNotes={ticket.resolution_notes} />
       </SectionCard>
 
-      {/* Services */}
-      {ticket.services && (
-        <SectionCard title="Services">
-          <div className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
-            {Array.isArray(ticket.services) ? (
-              <div className="space-y-2">
-                {ticket.services.map((service: { description?: string; name?: string }, i: number) => (
-                  <div
-                    key={i}
-                    className="flex items-start gap-3 rounded-lg p-3"
-                    style={{ background: "var(--color-surface-2)" }}
-                  >
-                    <span style={{ color: "var(--color-brand)" }}>●</span>
-                    <span>{service.description || service.name || JSON.stringify(service)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="whitespace-pre-wrap">
-                {typeof ticket.services === "string"
-                  ? ticket.services
-                  : JSON.stringify(ticket.services, null, 2)}
-              </p>
-            )}
-          </div>
-        </SectionCard>
-      )}
+      {/* Services - NOW INTERACTIVE */}
+      <SectionCard title="Services">
+        <ServicesManager ticketId={ticket.id} initialServices={ticket.services} />
+      </SectionCard>
 
-      {/* Parts - NOW INTERACTIVE */}
+      {/* Parts */}
       <SectionCard title="Parts Used">
         <PartsManager ticketId={ticket.id} initialParts={ticketParts || []} />
       </SectionCard>
 
-      {/* Labor - NOW INTERACTIVE WITH EDIT */}
+      {/* Labor */}
       <SectionCard title="Labor">
         <LaborManager ticketId={ticket.id} initialLabor={ticketLabor || []} />
       </SectionCard>
 
       {/* Grand Total */}
-      <section
-        className="rounded-xl p-5"
-        style={{
-          background: "var(--color-surface-0)",
-          border: "1px solid var(--color-border-subtle)",
-        }}
-      >
+      <section className="rounded-xl p-5" style={{ background: "var(--color-surface-0)", border: "1px solid var(--color-border-subtle)" }}>
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span style={{ color: "var(--color-text-muted)" }}>Parts</span>
@@ -239,26 +152,16 @@ export default async function TicketDetailPage({
           {ticket.tax_amount != null && Number(ticket.tax_amount) > 0 && (
             <div className="flex justify-between">
               <span style={{ color: "var(--color-text-muted)" }}>Tax</span>
-              <span className="font-mono" style={{ color: "var(--color-text-primary)" }}>
-                ${Number(ticket.tax_amount).toFixed(2)}
-              </span>
+              <span className="font-mono" style={{ color: "var(--color-text-primary)" }}>${Number(ticket.tax_amount).toFixed(2)}</span>
             </div>
           )}
-          <div
-            className="flex justify-between pt-3 mt-2"
-            style={{ borderTop: "2px solid var(--color-border)" }}
-          >
-            <span className="text-base font-bold" style={{ color: "var(--color-text-primary)" }}>
-              Grand Total
-            </span>
-            <span className="font-mono text-xl font-bold" style={{ color: "var(--color-brand)" }}>
-              ${Number(ticket.grand_total || partsTotal + laborTotal).toFixed(2)}
-            </span>
+          <div className="flex justify-between pt-3 mt-2" style={{ borderTop: "2px solid var(--color-border)" }}>
+            <span className="text-base font-bold" style={{ color: "var(--color-text-primary)" }}>Grand Total</span>
+            <span className="font-mono text-xl font-bold" style={{ color: "var(--color-brand)" }}>${Number(ticket.grand_total || partsTotal + laborTotal).toFixed(2)}</span>
           </div>
         </div>
       </section>
 
-      {/* Footer meta */}
       <p className="pb-4 text-center text-xs" style={{ color: "var(--color-text-muted)" }}>
         Created {ticket.ticket_date ? new Date(ticket.ticket_date).toLocaleDateString() : "—"}
         {ticket.updated_at && ` · Updated ${new Date(ticket.updated_at).toLocaleDateString()}`}

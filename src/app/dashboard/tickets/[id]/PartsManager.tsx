@@ -27,56 +27,55 @@ export default function PartsManager({ ticketId, initialParts }: { ticketId: str
   const [suggestions, setSuggestions] = useState<InvPart[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedInvId, setSelectedInvId] = useState<string | null>(null);
+  const [notInInventory, setNotInInventory] = useState(false);
+  const [searchDone, setSearchDone] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const lineTotal = (parseFloat(quantity) || 0) * (parseFloat(unitPrice) || 0);
   const partsTotal = initialParts.reduce((sum, p) => sum + Number(p.total_price || 0), 0);
 
-  // Search inventory as user types
   function handleDescriptionChange(val: string) {
     setDescription(val);
     setSelectedInvId(null);
+    setNotInInventory(false);
+    setSearchDone(false);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     if (val.trim().length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
     searchTimeout.current = setTimeout(async () => {
       const { data } = await supabase.from("parts").select("id, name, description, price, stock").ilike("name", `%${val.trim()}%`).limit(8);
-      if (data && data.length > 0) { setSuggestions(data); setShowSuggestions(true); } else { setSuggestions([]); setShowSuggestions(false); }
-    }, 250);
+      if (data && data.length > 0) { setSuggestions(data); setShowSuggestions(true); setNotInInventory(false); }
+      else { setSuggestions([]); setShowSuggestions(false); setNotInInventory(true); }
+      setSearchDone(true);
+    }, 300);
   }
 
   function pickSuggestion(part: InvPart) {
     setDescription(part.name);
     setUnitPrice(part.price != null ? String(part.price) : "");
+    if (!quantity) setQuantity("1");
     setSelectedInvId(part.id);
+    setNotInInventory(false);
     setSuggestions([]);
     setShowSuggestions(false);
   }
 
-  // Close suggestions on outside click
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setShowSuggestions(false);
-    }
+    function handleClick(e: MouseEvent) { if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setShowSuggestions(false); }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  function startEdit(part: PartRow) {
-    setEditingId(part.id); setDescription(part.description || ""); setQuantity(String(part.quantity || "")); setUnitPrice(String(part.unit_price || "")); setSelectedInvId(null); setShowForm(true);
-  }
-  function startAdd() {
-    setEditingId(null); setDescription(""); setQuantity(""); setUnitPrice(""); setSelectedInvId(null); setShowForm(true);
-  }
-  function cancelForm() {
-    setShowForm(false); setEditingId(null); setDescription(""); setQuantity(""); setUnitPrice(""); setSelectedInvId(null); setSuggestions([]); setShowSuggestions(false);
-  }
+  function startEdit(part: PartRow) { setEditingId(part.id); setDescription(part.description || ""); setQuantity(String(part.quantity || "")); setUnitPrice(String(part.unit_price || "")); setSelectedInvId(null); setNotInInventory(false); setSearchDone(false); setShowForm(true); }
+  function startAdd() { setEditingId(null); setDescription(""); setQuantity(""); setUnitPrice(""); setSelectedInvId(null); setNotInInventory(false); setSearchDone(false); setShowForm(true); }
+  function cancelForm() { setShowForm(false); setEditingId(null); setDescription(""); setQuantity(""); setUnitPrice(""); setSelectedInvId(null); setNotInInventory(false); setSearchDone(false); setSuggestions([]); setShowSuggestions(false); }
 
   async function handleSave() {
     if (!description.trim()) return;
     setSaving(true);
     const qty = parseFloat(quantity) || 1;
-    const row = { description: description.trim(), quantity: qty, unit_price: parseFloat(unitPrice) || 0, total_price: lineTotal || (parseFloat(unitPrice) || 0) * qty };
+    const price = parseFloat(unitPrice) || 0;
+    const row = { description: description.trim(), quantity: qty, unit_price: price, total_price: qty * price };
 
     if (editingId) {
       await supabase.from("ticket_parts").update(row).eq("id", editingId);
@@ -84,12 +83,9 @@ export default function PartsManager({ ticketId, initialParts }: { ticketId: str
       await supabase.from("ticket_parts").insert({ ...row, ticket_id: ticketId });
     }
 
-    // Deduct from inventory if we picked from inventory and adding (not editing)
     if (selectedInvId && !editingId) {
       const { data: current } = await supabase.from("parts").select("stock").eq("id", selectedInvId).single();
-      if (current) {
-        await supabase.from("parts").update({ stock: Math.max(0, (current.stock || 0) - qty) }).eq("id", selectedInvId);
-      }
+      if (current) await supabase.from("parts").update({ stock: Math.max(0, (current.stock || 0) - qty) }).eq("id", selectedInvId);
     }
 
     setSaving(false);
@@ -97,47 +93,37 @@ export default function PartsManager({ ticketId, initialParts }: { ticketId: str
     router.refresh();
   }
 
-  async function handleDelete(partId: string) {
-    setDeleting(partId); await supabase.from("ticket_parts").delete().eq("id", partId); setDeleting(null); router.refresh();
-  }
+  async function handleDelete(partId: string) { setDeleting(partId); await supabase.from("ticket_parts").delete().eq("id", partId); setDeleting(null); router.refresh(); }
 
   return (
     <div>
       {initialParts.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
-                <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider" style={lS}>Part</th>
-                <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider" style={lS}>Qty</th>
-                <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider" style={lS}>Unit Price</th>
-                <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider" style={lS}>Total</th>
-                <th className="pb-2 w-16"></th>
+            <thead><tr style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
+              <th className="pb-2 pr-4 text-left text-xs font-semibold uppercase tracking-wider" style={lS}>Part</th>
+              <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider" style={lS}>Qty</th>
+              <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider" style={lS}>Unit Price</th>
+              <th className="pb-2 pr-4 text-right text-xs font-semibold uppercase tracking-wider" style={lS}>Total</th>
+              <th className="pb-2 w-16"></th>
+            </tr></thead>
+            <tbody>{initialParts.map((part) => (
+              <tr key={part.id} style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
+                <td className="py-2.5 pr-4" style={{ color: "var(--color-text-primary)" }}>{part.description || "Unnamed part"}</td>
+                <td className="py-2.5 pr-4 text-right font-mono" style={{ color: "var(--color-text-secondary)" }}>{part.quantity}</td>
+                <td className="py-2.5 pr-4 text-right font-mono" style={{ color: "var(--color-text-secondary)" }}>${Number(part.unit_price || 0).toFixed(2)}</td>
+                <td className="py-2.5 pr-4 text-right font-mono font-semibold" style={{ color: "var(--color-text-primary)" }}>${Number(part.total_price || 0).toFixed(2)}</td>
+                <td className="py-2.5 text-right"><div className="flex items-center justify-end gap-1">
+                  <button onClick={() => startEdit(part)} className="rounded p-1 text-xs hover:bg-blue-500/10" style={{ color: "#3b82f6" }} title="Edit">✏️</button>
+                  <button onClick={() => handleDelete(part.id)} disabled={deleting === part.id} className="rounded p-1 text-xs hover:bg-red-500/10" style={{ color: "#ef4444" }} title="Remove">{deleting === part.id ? "..." : "✕"}</button>
+                </div></td>
               </tr>
-            </thead>
-            <tbody>
-              {initialParts.map((part) => (
-                <tr key={part.id} style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
-                  <td className="py-2.5 pr-4" style={{ color: "var(--color-text-primary)" }}>{part.description || "Unnamed part"}</td>
-                  <td className="py-2.5 pr-4 text-right font-mono" style={{ color: "var(--color-text-secondary)" }}>{part.quantity}</td>
-                  <td className="py-2.5 pr-4 text-right font-mono" style={{ color: "var(--color-text-secondary)" }}>${Number(part.unit_price || 0).toFixed(2)}</td>
-                  <td className="py-2.5 pr-4 text-right font-mono font-semibold" style={{ color: "var(--color-text-primary)" }}>${Number(part.total_price || 0).toFixed(2)}</td>
-                  <td className="py-2.5 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => startEdit(part)} className="rounded p-1 text-xs hover:bg-blue-500/10" style={{ color: "#3b82f6" }} title="Edit">✏️</button>
-                      <button onClick={() => handleDelete(part.id)} disabled={deleting === part.id} className="rounded p-1 text-xs hover:bg-red-500/10" style={{ color: "#ef4444" }} title="Remove">{deleting === part.id ? "..." : "✕"}</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: "2px solid var(--color-border)" }}>
-                <td colSpan={3} className="pt-2.5 pr-4 text-right text-xs font-semibold uppercase tracking-wider" style={lS}>Parts Subtotal</td>
-                <td className="pt-2.5 pr-4 text-right font-mono font-bold" style={{ color: "var(--color-brand)" }}>${partsTotal.toFixed(2)}</td>
-                <td></td>
-              </tr>
-            </tfoot>
+            ))}</tbody>
+            <tfoot><tr style={{ borderTop: "2px solid var(--color-border)" }}>
+              <td colSpan={3} className="pt-2.5 pr-4 text-right text-xs font-semibold uppercase tracking-wider" style={lS}>Parts Subtotal</td>
+              <td className="pt-2.5 pr-4 text-right font-mono font-bold" style={{ color: "var(--color-brand)" }}>${partsTotal.toFixed(2)}</td>
+              <td></td>
+            </tr></tfoot>
           </table>
         </div>
       ) : (
@@ -150,6 +136,30 @@ export default function PartsManager({ ticketId, initialParts }: { ticketId: str
             <label className={lC} style={lS}>Part Name (type to search inventory)</label>
             <input type="text" value={description} onChange={(e) => handleDescriptionChange(e.target.value)} className={iC} style={iS} placeholder="Start typing to search parts..." autoFocus />
             {selectedInvId && <span className="mt-1 inline-block text-xs font-medium" style={{ color: "#22c55e" }}>✓ From inventory — price auto-filled</span>}
+
+            {/* Not in inventory warning */}
+            {notInInventory && searchDone && description.trim().length >= 2 && !selectedInvId && (
+              <div className="mt-2 rounded-lg p-3" style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)" }}>
+                <p className="text-sm font-medium" style={{ color: "#f59e0b" }}>⚠️ &quot;{description.trim()}&quot; not found in inventory</p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={() => router.push("/dashboard/parts/new")}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110"
+                    style={{ background: "#f59e0b" }}
+                  >
+                    Add to Inventory
+                  </button>
+                  <button
+                    onClick={() => { setNotInInventory(false); setSearchDone(false); }}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium"
+                    style={{ color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" }}
+                  >
+                    Enter Manually
+                  </button>
+                </div>
+              </div>
+            )}
+
             {showSuggestions && suggestions.length > 0 && (
               <div className="absolute z-10 mt-1 w-full rounded-lg shadow-lg overflow-hidden" style={{ background: "var(--color-surface-0)", border: "1px solid var(--color-border-subtle)" }}>
                 {suggestions.map((s) => (
@@ -164,9 +174,6 @@ export default function PartsManager({ ticketId, initialParts }: { ticketId: str
                     </div>
                   </button>
                 ))}
-                <div className="px-3 py-1.5 text-[11px]" style={{ color: "var(--color-text-muted)", background: "var(--color-surface-2)" }}>
-                  Or keep typing for a custom part
-                </div>
               </div>
             )}
           </div>
