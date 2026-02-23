@@ -29,6 +29,9 @@ export default function InvoicePage() {
   const [showSettings, setShowSettings] = useState(false);
   const [biz, setBiz] = useState({ name: "Curt's Small Engine Repair", address: "", phone: "", email: "", terms: "Due upon receipt" });
   const [inv, setInv] = useState({ taxRate: "", notes: "", dueDate: "" });
+  const [taxable, setTaxable] = useState<Record<string, boolean>>({});
+
+  function toggleTax(id: string) { setTaxable((prev) => ({ ...prev, [id]: !prev[id] })); }
 
   useEffect(() => {
     try {
@@ -48,9 +51,9 @@ export default function InvoicePage() {
       const { data: t } = await supabase.from("tickets").select("*").eq("id", ticketId).single();
       if (t) { setTicket(t); if (!inv.dueDate) setInv((p) => ({ ...p, dueDate: new Date().toISOString().split("T")[0] })); }
       const { data: p } = await supabase.from("ticket_parts").select("*").eq("ticket_id", ticketId).order("created_at");
-      if (p) setParts(p);
+      if (p) { setParts(p); setTaxable((prev) => { const next = { ...prev }; p.forEach((r) => { if (next[r.id] === undefined) next[r.id] = true; }); return next; }); }
       const { data: l } = await supabase.from("ticket_labor").select("*").eq("ticket_id", ticketId).order("created_at");
-      if (l) setLabor(l);
+      if (l) { setLabor(l); setTaxable((prev) => { const next = { ...prev }; l.forEach((r) => { if (next[r.id] === undefined) next[r.id] = true; }); return next; }); }
       setLoading(false);
     }
     load();
@@ -62,17 +65,20 @@ export default function InvoicePage() {
   const pT = parts.reduce((s, p) => s + Number(p.total_price || 0), 0);
   const lT = labor.reduce((s, l) => s + Number(l.total_price || 0), 0);
   const sub = pT + lT;
-  const tax = inv.taxRate ? sub * (parseFloat(inv.taxRate) / 100) : Number(ticket.tax_amount || 0);
+  const taxableTotal = [...parts, ...labor].reduce((s, r) => s + (taxable[r.id] !== false ? Number(r.total_price || 0) : 0), 0);
+  const rate = inv.taxRate ? parseFloat(inv.taxRate) : 0;
+  const tax = rate > 0 ? taxableTotal * (rate / 100) : Number(ticket.tax_amount || 0);
   const total = sub + tax;
   const equip = [ticket.equipment_brand, ticket.equipment_model, ticket.equipment_type].filter(Boolean).join(" ");
 
   function buildText() {
     let m = `Invoice ${ticket!.invoice_number || ""} from ${biz.name}\n\nCustomer: ${ticket!.customer_name || "—"}\n`;
     if (equip) m += `Equipment: ${equip}\n`;
-    if (parts.length) { m += `\nPARTS:\n`; parts.forEach((p) => { m += `  ${p.description || "Part"} - Qty ${p.quantity} × $${Number(p.unit_price || 0).toFixed(2)} = $${Number(p.total_price || 0).toFixed(2)}\n`; }); m += `  Subtotal: $${pT.toFixed(2)}\n`; }
-    if (labor.length) { m += `\nLABOR:\n`; labor.forEach((l) => { m += `  ${l.description || "Labor"} - ${Number(l.hours || 0).toFixed(1)}hrs × $${Number(l.rate || 0).toFixed(2)}/hr = $${Number(l.total_price || 0).toFixed(2)}\n`; }); m += `  Subtotal: $${lT.toFixed(2)}\n`; }
+    if (parts.length) { m += `\nPARTS:\n`; parts.forEach((p) => { m += `  ${p.description || "Part"} - Qty ${p.quantity} × $${Number(p.unit_price || 0).toFixed(2)} = $${Number(p.total_price || 0).toFixed(2)}${taxable[p.id] !== false && rate > 0 ? " *" : ""}\n`; }); m += `  Subtotal: $${pT.toFixed(2)}\n`; }
+    if (labor.length) { m += `\nLABOR:\n`; labor.forEach((l) => { m += `  ${l.description || "Labor"} - ${Number(l.hours || 0).toFixed(1)}hrs × $${Number(l.rate || 0).toFixed(2)}/hr = $${Number(l.total_price || 0).toFixed(2)}${taxable[l.id] !== false && rate > 0 ? " *" : ""}\n`; }); m += `  Subtotal: $${lT.toFixed(2)}\n`; }
     m += `\nSubtotal: $${sub.toFixed(2)}\n`;
-    if (tax > 0) m += `Tax${inv.taxRate ? ` (${inv.taxRate}%)` : ""}: $${tax.toFixed(2)}\n`;
+    if (tax > 0) m += `Tax${rate > 0 ? ` (${inv.taxRate}% on $${taxableTotal.toFixed(2)})` : ""}: $${tax.toFixed(2)}\n`;
+    if (rate > 0) m += `* = taxable item\n`;
     m += `TOTAL DUE: $${total.toFixed(2)}\n\nTerms: ${biz.terms}\n`;
     if (inv.dueDate) m += `Due: ${new Date(inv.dueDate + "T12:00:00").toLocaleDateString()}\n`;
     if (inv.notes) m += `Note: ${inv.notes}\n`;
@@ -85,7 +91,8 @@ export default function InvoicePage() {
   const th: React.CSSProperties = { textAlign: "right", padding: "8px 0", color: "#666", fontWeight: 600 };
   const td: React.CSSProperties = { padding: "8px 0", color: "#333", textAlign: "right" };
   const hd: React.CSSProperties = { fontSize: "11px", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "1px", color: "#999", margin: "0 0 8px" };
-  const tr: React.CSSProperties = { display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: "14px" };
+  const tR: React.CSSProperties = { display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: "14px" };
+  const taxBadge: React.CSSProperties = { fontSize: "10px", color: "#16a34a", fontWeight: 600, marginLeft: 4 };
 
   return (
     <>
@@ -119,9 +126,32 @@ export default function InvoicePage() {
         <div className="flex gap-4 items-end">
           <div className="w-48"><label className={lC} style={lS}>Due Date (this invoice)</label><input type="date" value={inv.dueDate} onChange={(e) => setInv({ ...inv, dueDate: e.target.value })} className={iC} style={iS} /></div>
         </div>
+
+        {rate > 0 && (parts.length > 0 || labor.length > 0) && (
+          <div className="rounded-xl p-4 space-y-2" style={{ background: "var(--color-surface-0)", border: "1px solid var(--color-border-subtle)" }}>
+            <h3 className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>Taxable Items ({inv.taxRate}%)</h3>
+            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Uncheck items that should not be taxed</p>
+            <div className="space-y-1">
+              {parts.map((p) => (
+                <label key={p.id} className="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-[var(--color-surface-2)]">
+                  <input type="checkbox" checked={taxable[p.id] !== false} onChange={() => toggleTax(p.id)} className="h-4 w-4 rounded" />
+                  <span className="text-sm" style={{ color: "var(--color-text-primary)" }}>{p.description || "Part"}</span>
+                  <span className="text-xs ml-auto" style={{ color: "var(--color-text-muted)" }}>${Number(p.total_price || 0).toFixed(2)}</span>
+                </label>
+              ))}
+              {labor.map((l) => (
+                <label key={l.id} className="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-[var(--color-surface-2)]">
+                  <input type="checkbox" checked={taxable[l.id] !== false} onChange={() => toggleTax(l.id)} className="h-4 w-4 rounded" />
+                  <span className="text-sm" style={{ color: "var(--color-text-primary)" }}>{l.description || "Labor"}</span>
+                  <span className="text-xs ml-auto" style={{ color: "var(--color-text-muted)" }}>${Number(l.total_price || 0).toFixed(2)}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Taxable subtotal: ${taxableTotal.toFixed(2)} · Tax: ${tax.toFixed(2)}</p>
+          </div>
+        )}
       </div>
 
-      {/* Printable Invoice */}
       <div id="invoice" style={{ maxWidth: 800, margin: "0 auto", padding: 48, fontFamily: "system-ui, -apple-system, sans-serif", color: "#111", background: "white" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 32, paddingBottom: 20, borderBottom: "3px solid #111" }}>
           <div>
@@ -153,17 +183,17 @@ export default function InvoicePage() {
 
         {equip && (<div style={{ marginBottom: 24, padding: "12px 16px", background: "#f9f9f9", borderRadius: 6 }}><span style={{ ...hd, margin: 0 }}>Equipment</span><p style={{ fontSize: 14, color: "#111", margin: "4px 0 0" }}>{equip}{ticket.equipment_serial && ` · Serial: ${ticket.equipment_serial}`}</p></div>)}
 
-        {parts.length > 0 && (<div style={{ marginBottom: 24 }}><h3 style={hd}>Parts</h3><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}><thead><tr style={{ borderBottom: "2px solid #e5e5e5" }}><th style={{ ...th, textAlign: "left" }}>Description</th><th style={{ ...th, width: 70 }}>Qty</th><th style={{ ...th, width: 100 }}>Unit Price</th><th style={{ ...th, width: 100 }}>Total</th></tr></thead><tbody>{parts.map((p) => (<tr key={p.id} style={{ borderBottom: "1px solid #f0f0f0" }}><td style={{ padding: "8px 0", color: "#111" }}>{p.description || "Part"}</td><td style={td}>{p.quantity}</td><td style={td}>${Number(p.unit_price || 0).toFixed(2)}</td><td style={{ ...td, color: "#111", fontWeight: 600 }}>${Number(p.total_price || 0).toFixed(2)}</td></tr>))}</tbody></table></div>)}
+        {parts.length > 0 && (<div style={{ marginBottom: 24 }}><h3 style={hd}>Parts</h3><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}><thead><tr style={{ borderBottom: "2px solid #e5e5e5" }}><th style={{ ...th, textAlign: "left" }}>Description</th><th style={{ ...th, width: 70 }}>Qty</th><th style={{ ...th, width: 100 }}>Unit Price</th><th style={{ ...th, width: 100 }}>Total</th></tr></thead><tbody>{parts.map((p) => (<tr key={p.id} style={{ borderBottom: "1px solid #f0f0f0" }}><td style={{ padding: "8px 0", color: "#111" }}>{p.description || "Part"}{rate > 0 && taxable[p.id] !== false ? <span style={taxBadge}>TAX</span> : null}</td><td style={td}>{p.quantity}</td><td style={td}>${Number(p.unit_price || 0).toFixed(2)}</td><td style={{ ...td, color: "#111", fontWeight: 600 }}>${Number(p.total_price || 0).toFixed(2)}</td></tr>))}</tbody></table></div>)}
 
-        {labor.length > 0 && (<div style={{ marginBottom: 24 }}><h3 style={hd}>Labor</h3><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}><thead><tr style={{ borderBottom: "2px solid #e5e5e5" }}><th style={{ ...th, textAlign: "left" }}>Description</th><th style={{ ...th, width: 70 }}>Hours</th><th style={{ ...th, width: 100 }}>Rate</th><th style={{ ...th, width: 100 }}>Total</th></tr></thead><tbody>{labor.map((l) => (<tr key={l.id} style={{ borderBottom: "1px solid #f0f0f0" }}><td style={{ padding: "8px 0", color: "#111" }}>{l.description || "Labor"}</td><td style={td}>{Number(l.hours || 0).toFixed(1)}</td><td style={td}>${Number(l.rate || 0).toFixed(2)}/hr</td><td style={{ ...td, color: "#111", fontWeight: 600 }}>${Number(l.total_price || 0).toFixed(2)}</td></tr>))}</tbody></table></div>)}
+        {labor.length > 0 && (<div style={{ marginBottom: 24 }}><h3 style={hd}>Labor</h3><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}><thead><tr style={{ borderBottom: "2px solid #e5e5e5" }}><th style={{ ...th, textAlign: "left" }}>Description</th><th style={{ ...th, width: 70 }}>Hours</th><th style={{ ...th, width: 100 }}>Rate</th><th style={{ ...th, width: 100 }}>Total</th></tr></thead><tbody>{labor.map((l) => (<tr key={l.id} style={{ borderBottom: "1px solid #f0f0f0" }}><td style={{ padding: "8px 0", color: "#111" }}>{l.description || "Labor"}{rate > 0 && taxable[l.id] !== false ? <span style={taxBadge}>TAX</span> : null}</td><td style={td}>{Number(l.hours || 0).toFixed(1)}</td><td style={td}>${Number(l.rate || 0).toFixed(2)}/hr</td><td style={{ ...td, color: "#111", fontWeight: 600 }}>${Number(l.total_price || 0).toFixed(2)}</td></tr>))}</tbody></table></div>)}
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 32 }}>
           <div style={{ width: 280 }}>
-            <div style={tr}><span style={{ color: "#666" }}>Parts</span><span>${pT.toFixed(2)}</span></div>
-            <div style={tr}><span style={{ color: "#666" }}>Labor</span><span>${lT.toFixed(2)}</span></div>
-            <div style={{ ...tr, borderTop: "1px solid #e5e5e5" }}><span style={{ color: "#666" }}>Subtotal</span><span style={{ fontWeight: 600 }}>${sub.toFixed(2)}</span></div>
-            {tax > 0 && <div style={tr}><span style={{ color: "#666" }}>Tax{inv.taxRate ? ` (${inv.taxRate}%)` : ""}</span><span>${tax.toFixed(2)}</span></div>}
-            <div style={{ ...tr, padding: "12px 0", fontSize: 20, fontWeight: "bold", borderTop: "3px solid #111", marginTop: 4 }}><span>Total Due</span><span>${total.toFixed(2)}</span></div>
+            <div style={tR}><span style={{ color: "#666" }}>Parts</span><span>${pT.toFixed(2)}</span></div>
+            <div style={tR}><span style={{ color: "#666" }}>Labor</span><span>${lT.toFixed(2)}</span></div>
+            <div style={{ ...tR, borderTop: "1px solid #e5e5e5" }}><span style={{ color: "#666" }}>Subtotal</span><span style={{ fontWeight: 600 }}>${sub.toFixed(2)}</span></div>
+            {tax > 0 && <div style={tR}><span style={{ color: "#666" }}>Tax{rate > 0 ? ` (${inv.taxRate}%)` : ""}</span><span>${tax.toFixed(2)}</span></div>}
+            <div style={{ ...tR, padding: "12px 0", fontSize: 20, fontWeight: "bold", borderTop: "3px solid #111", marginTop: 4 }}><span>Total Due</span><span>${total.toFixed(2)}</span></div>
           </div>
         </div>
 
